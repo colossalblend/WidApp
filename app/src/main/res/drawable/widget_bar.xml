@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Rounded track + rounded fill that scales (not clips), so the end cap stays round. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:id="@android:id/background">
+        <shape android:shape="rectangle">
+            <corners android:radius="999dp" />
+            <solid android:color="#338A857A" />
+        </shape>
+    </item>
+    <item android:id="@android:id/progress">
+        <scale android:scaleWidth="100%" android:scaleGravity="start|center_vertical">
+            <shape android:shape="rectangle">
+                <corners android:radius="999dp" />
+                <solid android:color="#FF8A857A" />
+            </shape>
+        </scale>
+    </item>
+</layer-list>
