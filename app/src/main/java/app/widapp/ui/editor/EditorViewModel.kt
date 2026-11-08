@@ -18,7 +18,6 @@ import app.widapp.spec.SpecParser
 import app.widapp.spec.StateOps
 import app.widapp.spec.WAction
 import app.widapp.widget.WidgetBinder
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -34,47 +33,45 @@ class EditorViewModel(private val app: WidApp, private val id: String) : ViewMod
 
     val previewState = mutableStateMapOf<String, JsonPrimitive>()
     var previewDark by mutableStateOf<Boolean?>(null)
+    /** True while a background generation job for this widget is queued or running. */
     var busy by mutableStateOf(false)
+        private set
     var input by mutableStateOf("")
     var image by mutableStateOf<ImageInput?>(null)
     var thumb by mutableStateOf<Bitmap?>(null)
     var needsProvider by mutableStateOf(false)
     val messages = MutableSharedFlow<String>(extraBufferCapacity = 4)
-    private var job: Job? = null
 
-    private fun history(d: WidgetDesign) = d.versions.take(d.current + 1).map { it.prompt }.filter { it.isNotBlank() }
-
-    private fun run(block: suspend (WidgetDesign) -> Unit) {
-        val d = design.value ?: return
-        job?.cancel()
-        busy = true
-        job = viewModelScope.launch {
-            try { block(d) } catch (e: NoProviderException) { needsProvider = true; messages.emit(e.message.orEmpty()) }
-            catch (e: kotlinx.coroutines.CancellationException) { throw e }
-            catch (e: Exception) { messages.emit(e.message ?: e.javaClass.simpleName) }
-            finally { busy = false }
+    init {
+        // AI edits run as background jobs; react to their outcome while this screen is open.
+        viewModelScope.launch {
+            app.jobs.flow.collect { list ->
+                val mine = list.jobs.filter { it.designId == id }
+                busy = mine.any { it.active }
+                mine.filter { !it.seen && !it.active }.forEach { j ->
+                    app.jobs.markSeen(j.id)
+                    when (j.status) {
+                        "done" -> previewState.clear()
+                        "failed" -> { if (j.needsProvider) needsProvider = true; messages.emit(j.error.orEmpty()) }
+                    }
+                }
+            }
         }
     }
 
-    fun refine(text: String = input, context: Context) {
+    fun refine(text: String = input, @Suppress("UNUSED_PARAMETER") context: Context) {
         val instruction = text.trim()
-        if (instruction.isEmpty()) return
-        val img = image
-        run { d ->
-            val res = app.generator.refine(d.spec, history(d), instruction, img)
-            graph.designs.addVersion(id, res.spec, instruction, res.model)
-            input = ""; image = null; thumb = null
-            afterChange(context)
-        }
+        if (instruction.isEmpty() || busy) return
+        app.jobs.enqueueRefine(id, instruction, image)
+        input = ""; image = null; thumb = null
     }
 
-    fun variant(context: Context) = run { d ->
-        val res = app.generator.variant(d.spec, history(d))
-        graph.designs.addVersion(id, res.spec, L.t("Другой вариант", "Another take"), res.model)
-        afterChange(context)
+    fun variant(@Suppress("UNUSED_PARAMETER") context: Context) {
+        if (busy) return
+        app.jobs.enqueueVariant(id)
     }
 
-    fun cancel() { job?.cancel(); busy = false }
+    fun cancel() { app.jobs.activeFor(id)?.let { app.jobs.cancel(it.id) } }
 
     fun select(index: Int, context: Context) { graph.designs.select(id, index); afterChange(context) }
     fun undo(context: Context) { design.value?.let { if (it.current > 0) select(it.current - 1, context) } }

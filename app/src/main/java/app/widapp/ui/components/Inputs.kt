@@ -60,3 +60,19 @@ fun rememberVoiceInput(onText: (String) -> Unit): () -> Unit {
         }
     }
 }
+
+/** Returns an action that asks for notification access once (Android 13+), so finished background jobs can be reported. */
+@Composable
+fun rememberNotificationPermission(): () -> Unit {
+    val context = LocalContext.current
+    val graph = rememberGraph()
+    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
+    return {
+        if (android.os.Build.VERSION.SDK_INT >= 33 && !graph.settings.value.askedNotifications &&
+            androidx.core.content.ContextCompat.checkSelfPermission(context, android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED
+        ) {
+            graph.settings.update { it.copy(askedNotifications = true) }
+            launcher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
+}

@@ -1,6 +1,7 @@
 package app.widapp.ui.components
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
@@ -37,7 +38,12 @@ fun GeneratingStatus(model: String?, modifier: Modifier = Modifier, size: Dp = 9
             polygons = listOf(MaterialShapes.SoftBurst, MaterialShapes.Cookie9Sided, MaterialShapes.Pentagon, MaterialShapes.Pill, MaterialShapes.Sunny, MaterialShapes.Cookie4Sided, MaterialShapes.Oval),
         )
         Spacer(Modifier.height(18.dp))
-        AnimatedContent(index, transitionSpec = { fadeIn() togetherWith fadeOut() }, label = "status") { i ->
+        AnimatedContent(
+            index,
+            contentAlignment = Alignment.Center,
+            transitionSpec = { fadeIn(tween(350, delayMillis = 150)) togetherWith fadeOut(tween(150)) },
+            label = "status",
+        ) { i ->
             Text(steps[i], style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface, textAlign = TextAlign.Center)
         }
         if (model != null) {

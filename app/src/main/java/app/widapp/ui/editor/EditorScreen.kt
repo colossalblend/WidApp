@@ -163,14 +163,22 @@ fun EditorScreen(id: String, onBack: () -> Unit, onOpen: (String) -> Unit, onCon
         Column(Modifier.fillMaxSize().padding(pad).verticalScroll(rememberScrollState())) {
             Canvas(d, vm)
             Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                SizeTag(WidgetSize.of(d.spec.size), filled = true)
-                Spacer(Modifier.width(8.dp))
-                Text("v${d.current + 1}/${d.versions.size}", style = MonoLabel, color = c.onSurfaceVariant)
-                if (placed > 0) {
-                    Spacer(Modifier.width(8.dp))
-                    Text("· " + stringResource(R.string.editor_placed, placed), style = MonoLabel, color = c.onSurfaceVariant)
+                // Meta on the left may shrink; the button never wraps.
+                Column(Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        SizeTag(WidgetSize.of(d.spec.size), filled = true)
+                        Spacer(Modifier.width(8.dp))
+                        Text("v${d.current + 1}/${d.versions.size}", style = MonoLabel, color = c.onSurfaceVariant, maxLines = 1)
+                    }
+                    if (placed > 0) {
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            stringResource(R.string.editor_placed, placed), style = MonoLabel, color = c.onSurfaceVariant,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        )
+                    }
                 }
-                Spacer(Modifier.weight(1f))
+                Spacer(Modifier.width(12.dp))
                 Button(
                     onClick = {
                         if (WidgetBinder.canPin(context) && WidgetBinder.requestPin(context, d)) {
@@ -178,9 +186,10 @@ fun EditorScreen(id: String, onBack: () -> Unit, onOpen: (String) -> Unit, onCon
                         } else pinHelp = true
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = c.primary, contentColor = c.onPrimary),
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 16.dp, end = 20.dp, top = 10.dp, bottom = 10.dp),
                 ) {
                     Icon(painterResource(R.drawable.ic_mobile_arrow_up_right), null, Modifier.size(18.dp)); Spacer(Modifier.width(8.dp))
-                    Text(stringResource(R.string.editor_pin))
+                    Text(stringResource(R.string.editor_pin), maxLines = 1, softWrap = false)
                 }
             }
             PrimaryTabRow(selectedTabIndex = tab, containerColor = c.surface) {
@@ -338,6 +347,12 @@ private fun RefineBar(vm: EditorViewModel, onConnect: () -> Unit) {
     Column(Modifier.fillMaxWidth().background(c.surfaceContainerLow).navigationBarsPadding().imePadding().padding(horizontal = 12.dp, vertical = 10.dp)) {
         if (vm.needsProvider) {
             TextButton(onClick = onConnect) { Text(stringResource(R.string.connect_title)) }
+        }
+        androidx.compose.animation.AnimatedVisibility(vm.busy) {
+            Text(
+                stringResource(R.string.job_background_hint_short), style = MaterialTheme.typography.bodySmall,
+                color = c.onSurfaceVariant, modifier = Modifier.padding(start = 12.dp, bottom = 8.dp),
+            )
         }
         vm.thumb?.let { bmp ->
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 8.dp)) {

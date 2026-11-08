@@ -67,6 +67,8 @@ data class AppSettings(
     val skippedVersion: String? = null,
     /** Version that was running last time; used to show "What's new" once after an update. */
     val lastSeenVersion: String? = null,
+    /** We asked once for notification access (to report finished background generations). */
+    val askedNotifications: Boolean = false,
 )
 
 /** Live AI text for widgets: designId -> key -> value. */

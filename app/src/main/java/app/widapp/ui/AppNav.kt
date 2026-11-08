@@ -70,6 +70,8 @@ fun AppNav(
     onOpenCreateConsumed: () -> Unit,
     openUpdates: Boolean = false,
     onOpenUpdatesConsumed: () -> Unit = {},
+    openDesign: String? = null,
+    onOpenDesignConsumed: () -> Unit = {},
 ) {
     val nav = rememberNavController()
     val graph = rememberGraph()
@@ -88,6 +90,11 @@ fun AppNav(
     }
     LaunchedEffect(openCreate) {
         if (openCreate) { onOpenCreateConsumed(); nav.navigate(CreateRoute()) }
+    }
+    LaunchedEffect(openDesign) {
+        val id = openDesign ?: return@LaunchedEffect
+        onOpenDesignConsumed()
+        if (graph.designs.get(id) != null) nav.navigate(EditorRoute(id))
     }
     LaunchedEffect(openUpdates) {
         if (openUpdates) { onOpenUpdatesConsumed(); nav.navigate(UpdateRoute) }

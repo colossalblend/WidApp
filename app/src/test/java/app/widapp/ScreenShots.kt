@@ -81,6 +81,16 @@ class ScreenShots {
         compose.onNodeWithText("Версии").performClick(); shot("editor_history")
     }
 
+    /** Narrow English layout: the "Add to Home" button must stay on one line. */
+    @Test @Config(qualifiers = "en-w360dp-h780dp-xxhdpi") fun editorEnglishNarrow() {
+        val app = seed(false)
+        val spec = Samples.parsed().first { it.first == "clock" }.second
+        var d = app.graph.designs.create(spec, "Big clock", "cx/gpt-6.1-sol")
+        repeat(11) { app.graph.designs.addVersion(d.id, spec, "tweak $it", "cx/gpt-6.1-sol") }
+        compose.setContent { WidTheme(themeMode = "dark") { EditorScreen(d.id, {}, {}, {}) } }
+        shot("editor_en_narrow")
+    }
+
     @Test fun provider() {
         seed(false)
         compose.setContent { WidTheme { ProviderEditScreen(null, "anthropic", {}) } }

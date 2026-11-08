@@ -16,6 +16,7 @@ class MainActivity : ComponentActivity() {
     private val sharedText = mutableStateOf<String?>(null)
     private val openCreate = mutableStateOf(false)
     private val openUpdates = mutableStateOf(false)
+    private val openDesign = mutableStateOf<String?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
@@ -33,6 +34,8 @@ class MainActivity : ComponentActivity() {
                     onOpenCreateConsumed = { openCreate.value = false },
                     openUpdates = openUpdates.value,
                     onOpenUpdatesConsumed = { openUpdates.value = false },
+                    openDesign = openDesign.value,
+                    onOpenDesignConsumed = { openDesign.value = null },
                 )
             }
         }
@@ -47,10 +50,12 @@ class MainActivity : ComponentActivity() {
         if (intent?.action == Intent.ACTION_SEND) sharedText.value = intent.getStringExtra(Intent.EXTRA_TEXT)
         if (intent?.getBooleanExtra(EXTRA_CREATE, false) == true) openCreate.value = true
         if (intent?.getBooleanExtra(EXTRA_UPDATES, false) == true) openUpdates.value = true
+        intent?.getStringExtra(EXTRA_OPEN_DESIGN)?.let { openDesign.value = it }
     }
 
     companion object {
         const val EXTRA_CREATE = "app.widapp.CREATE"
         const val EXTRA_UPDATES = "app.widapp.UPDATES"
+        const val EXTRA_OPEN_DESIGN = "app.widapp.OPEN_DESIGN"
     }
 }

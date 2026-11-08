@@ -52,7 +52,9 @@ import app.widapp.ui.components.ShapeBadge
 import app.widapp.ui.components.SizeTag
 import app.widapp.ui.components.WidgetThumb
 import app.widapp.ui.components.dotGrid
+import app.widapp.ui.components.rememberApp
 import app.widapp.ui.components.rememberGraph
+import app.widapp.ui.update.UpdateBanner
 import app.widapp.ui.theme.MonoLabel
 
 @Composable
@@ -60,6 +62,10 @@ fun LibraryTab(onOpen: (String) -> Unit, onCreate: () -> Unit, onConnect: () -> 
     val graph = rememberGraph()
     val library by graph.designs.flow.collectAsState()
     val providers by graph.providers.flow.collectAsState()
+    val widApp = rememberApp()
+    val jobList by widApp.jobs.flow.collectAsState()
+    // New widgets being generated, and failures the user has not seen yet (refinements live in the editor).
+    val jobs = jobList.jobs.filter { (it.kind == "create" || it.kind == "surprise") && (it.active || (it.status == "failed" && !it.seen)) }
     var filter by rememberSaveable { mutableStateOf<String?>(null) }
     val designs = library.designs
         .filter { filter == null || (filter == "fav" && it.favorite) || it.spec.size == filter }
@@ -79,7 +85,8 @@ fun LibraryTab(onOpen: (String) -> Unit, onCreate: () -> Unit, onConnect: () -> 
                 title = stringResource(R.string.library_title),
             )
         }
-        item(span = StaggeredGridItemSpan.FullLine) { app.widapp.ui.update.UpdateBanner(onOpen = onUpdate) }
+        item(span = StaggeredGridItemSpan.FullLine) { UpdateBanner(onOpen = onUpdate) }
+        items(jobs, key = { "job-" + it.id }, span = { StaggeredGridItemSpan.FullLine }) { JobCard(it) }
         if (providers.providers.isEmpty()) {
             item(span = StaggeredGridItemSpan.FullLine) { ConnectCard(onConnect) }
         }

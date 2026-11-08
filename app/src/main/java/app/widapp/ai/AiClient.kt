@@ -5,7 +5,9 @@ import app.widapp.core.L
 import app.widapp.data.ModelInfo
 import app.widapp.data.ProviderConfig
 import app.widapp.data.ProviderKind
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
@@ -258,7 +260,10 @@ class AiClient(
         execute(Request.Builder().url(url).apply { headers.forEach { (k, v) -> header(k, v) } }
             .post(body.toString().toRequestBody(jsonType)).build())
 
-    private suspend fun execute(request: Request): JsonElement {
+    /** Network and body reading stay off the main thread: gateways may hold the body open for minutes. */
+    private suspend fun execute(request: Request): JsonElement = withContext(Dispatchers.IO) { executeBlocking(request) }
+
+    private suspend fun executeBlocking(request: Request): JsonElement {
         val response = try {
             http.newCall(request).await()
         } catch (e: IOException) {

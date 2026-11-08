@@ -76,12 +76,12 @@ import app.widapp.ui.components.Kicker
 import app.widapp.ui.components.SizeGlyph
 import app.widapp.ui.components.rememberApp
 import app.widapp.ui.components.rememberImagePicker
+import app.widapp.ui.components.rememberNotificationPermission
 import app.widapp.ui.components.rememberVoiceInput
 import app.widapp.ui.ideas.IdeaPrompts
 import app.widapp.ui.providers.ModelPickerSheet
 import app.widapp.ui.theme.MonoLabel
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.launch
 
 class CreateViewModel(private val app: WidApp) : ViewModel() {
@@ -90,10 +90,11 @@ class CreateViewModel(private val app: WidApp) : ViewModel() {
     var style by mutableStateOf("")
     var image by mutableStateOf<ImageInput?>(null)
     var thumb by mutableStateOf<Bitmap?>(null)
-    var busy by mutableStateOf<String?>(null) // "generate" | "surprise" | "enhance"
+    /** Only "enhance" runs here; widget generation is a background job ([jobId]). */
+    var busy by mutableStateOf<String?>(null)
     var error by mutableStateOf<String?>(null)
     var needsProvider by mutableStateOf(false)
-    val created = MutableSharedFlow<String>(extraBufferCapacity = 1)
+    var jobId by mutableStateOf<String?>(null)
     private var job: Job? = null
     private var initialised = false
 
@@ -105,44 +106,38 @@ class CreateViewModel(private val app: WidApp) : ViewModel() {
         if (surprise) surprise()
     }
 
-    private fun launch(kind: String, block: suspend () -> Unit) {
+    fun generate() {
+        if (prompt.isBlank() || jobId != null) return
+        error = null
+        jobId = app.jobs.enqueueCreate(prompt.trim(), size, style.ifBlank { null }, image)
+    }
+
+    fun surprise() {
+        if (jobId != null) return
+        error = null
+        jobId = app.jobs.enqueueSurprise(size)
+    }
+
+    fun enhance() {
+        if (prompt.isBlank()) return
         job?.cancel()
-        busy = kind; error = null
+        busy = "enhance"; error = null
         job = viewModelScope.launch {
-            try { block() } catch (e: NoProviderException) { needsProvider = true; error = e.message }
+            try { prompt = app.generator.enhance(prompt.trim(), size) }
+            catch (e: NoProviderException) { needsProvider = true; error = e.message }
             catch (e: kotlinx.coroutines.CancellationException) { throw e }
             catch (e: Exception) { error = e.message ?: e.javaClass.simpleName }
             finally { busy = null }
         }
     }
 
-    fun generate() {
-        if (prompt.isBlank()) return
-        launch("generate") {
-            val res = app.generator.create(prompt.trim(), size, style.ifBlank { null }, image)
-            finish(app.graph.designs.create(res.spec, prompt.trim(), res.model).id)
-        }
+    fun cancel() {
+        jobId?.let(app.jobs::cancel)
+        jobId = null
     }
 
-    fun surprise() = launch("surprise") {
-        val res = app.generator.surprise(size)
-        finish(app.graph.designs.create(res.spec, "", res.model).id)
-    }
-
-    fun enhance() {
-        if (prompt.isBlank()) return
-        launch("enhance") { prompt = app.generator.enhance(prompt.trim(), size) }
-    }
-
-    fun cancel() { job?.cancel(); busy = null }
-
-    private suspend fun finish(id: String) {
-        val design = app.graph.designs.get(id)
-        if (design != null && app.liveContent.slots(design).isNotEmpty()) {
-            app.appScope.launch { app.liveContent.refresh(id) }
-        }
-        created.emit(id)
-    }
+    /** Called when the job finished or failed and the screen reacted to it. */
+    fun consumed() { jobId = null }
 }
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -158,7 +153,17 @@ fun CreateScreen(
     val app = rememberApp()
     val vm: CreateViewModel = viewModel { CreateViewModel(app) }
     LaunchedEffect(Unit) { vm.init(initialPrompt, initialSize, surprise) }
-    LaunchedEffect(Unit) { vm.created.collect { onCreated(it) } }
+    val jobs by app.jobs.flow.collectAsState()
+    val job = jobs.jobs.firstOrNull { it.id == vm.jobId }
+    LaunchedEffect(job?.status) {
+        val j = job ?: return@LaunchedEffect
+        when (j.status) {
+            "done" -> { app.jobs.markSeen(j.id); vm.consumed(); j.resultDesignId?.let(onCreated) }
+            "failed" -> { app.jobs.markSeen(j.id); vm.needsProvider = j.needsProvider; vm.error = j.error; vm.consumed() }
+            "cancelled" -> vm.consumed()
+        }
+    }
+    val askNotifications = rememberNotificationPermission()
     val providers by app.graph.providers.flow.collectAsState()
     val settings by app.graph.settings.flow.collectAsState()
     val active = app.graph.providers.get(settings.activeProviderId) ?: providers.providers.firstOrNull()
@@ -177,7 +182,7 @@ fun CreateScreen(
                 title = { Text(stringResource(R.string.create_title)) },
                 navigationIcon = { IconButton(onClick = onBack) { Icon(painterResource(R.drawable.ic_close), stringResource(R.string.action_close)) } },
                 actions = {
-                    TextButton(onClick = vm::surprise, enabled = vm.busy == null) {
+                    TextButton(onClick = { askNotifications(); vm.surprise() }, enabled = vm.busy == null && vm.jobId == null) {
                         Icon(painterResource(R.drawable.ic_casino), null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp))
                         Text(stringResource(R.string.create_surprise))
                     }
@@ -201,8 +206,8 @@ fun CreateScreen(
                     }
                     Spacer(Modifier.height(8.dp))
                     Button(
-                        onClick = vm::generate,
-                        enabled = vm.prompt.isNotBlank() && vm.busy == null,
+                        onClick = { askNotifications(); vm.generate() },
+                        enabled = vm.prompt.isNotBlank() && vm.busy == null && vm.jobId == null,
                         modifier = Modifier.fillMaxWidth().height(60.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = c.tertiary, contentColor = c.onTertiary),
                         shape = RoundedCornerShape(20.dp),
@@ -299,12 +304,23 @@ fun CreateScreen(
                 Spacer(Modifier.height(24.dp))
             }
 
-            AnimatedVisibility(vm.busy == "generate" || vm.busy == "surprise", enter = fadeIn(), exit = fadeOut()) {
+            AnimatedVisibility(job?.active == true, enter = fadeIn(), exit = fadeOut()) {
                 Box(Modifier.fillMaxSize().background(c.surface.copy(alpha = 0.96f)).clickable(enabled = true, onClick = {}), contentAlignment = Alignment.Center) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(horizontal = 32.dp)) {
                         GeneratingStatus(active?.model)
-                        Spacer(Modifier.height(28.dp))
-                        TextButton(onClick = vm::cancel) { Text(stringResource(R.string.action_cancel)) }
+                        Spacer(Modifier.height(20.dp))
+                        Text(
+                            stringResource(R.string.job_background_hint), style = MaterialTheme.typography.bodyMedium,
+                            color = c.onSurfaceVariant, textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        )
+                        Spacer(Modifier.height(20.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            OutlinedButton(onClick = vm::cancel) { Text(stringResource(R.string.action_cancel)) }
+                            Button(onClick = onBack) {
+                                Icon(painterResource(R.drawable.ic_keyboard_arrow_down), null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp))
+                                Text(stringResource(R.string.job_minimize))
+                            }
+                        }
                     }
                 }
             }
