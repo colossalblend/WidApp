@@ -1,0 +1,65 @@
+name: Android
+
+on:
+  push:
+    branches: ["**"]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Install SDK packages
+        run: sdkmanager "platforms;android-37.2" "build-tools;37.0.0"
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      # Tags v1.2.3 / v1.3.0-beta.1 become the app version; other builds are 1.0.0.
+      - name: Version
+        id: ver
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            echo "name=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          else
+            echo "name=1.0.0" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Unit tests
+        run: ./gradlew :app:testDebugUnitTest --tests "app.widapp.SpecTest" -PappVersion=${{ steps.ver.outputs.name }}
+
+      - name: Build APKs
+        run: ./gradlew :app:assembleDebug :app:assembleRelease -PappVersion=${{ steps.ver.outputs.name }}
+
+      - name: Name APK
+        run: |
+          mkdir -p dist
+          cp app/build/outputs/apk/release/app-release.apk "dist/WidApp-${{ steps.ver.outputs.name }}.apk"
+          (cd dist && sha256sum *.apk > SHA256SUMS.txt)
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: WidApp-${{ steps.ver.outputs.name }}
+          path: dist/*
+
+      # The app's OTA updater reads GitHub Releases and installs the attached APK.
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true
+          prerelease: ${{ contains(github.ref_name, '-') }}

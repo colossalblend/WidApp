@@ -44,8 +44,8 @@ class ConfigActivity : ComponentActivity() {
         if (widgetId == AppWidgetManager.INVALID_APPWIDGET_ID) { finish(); return }
         val graph = (application as WidApp).graph
         val info = AppWidgetManager.getInstance(this).getAppWidgetInfo(widgetId)
-        val cols = info?.targetCellWidth ?: 0
-        val rows = info?.targetCellHeight ?: 0
+        val cols = if (android.os.Build.VERSION.SDK_INT >= 31) info?.targetCellWidth ?: 0 else 0
+        val rows = if (android.os.Build.VERSION.SDK_INT >= 31) info?.targetCellHeight ?: 0 else 0
 
         setContent {
             val settings by graph.settings.flow.collectAsState()

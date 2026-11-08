@@ -183,6 +183,13 @@ class GlanceRenderer(
             is Dim.Fixed -> m = m.height((h.dp * k).dp)
             null -> Unit
         }
+        // A LinearLayout only shares space between weighted children when it has room to share.
+        // Compose rows/columns take the full constraint in that case, so mirror it (unless this
+        // node is itself weighted along the same axis, which already sizes it).
+        val selfWeighted = (n.weight ?: 0f) > 0f
+        val hasWeighted = n.children.any { (it.weight ?: 0f) > 0f }
+        if (hasWeighted && n.type == "row" && n.width == null && !(selfWeighted && parent == Parent.Row)) m = m.fillMaxWidth()
+        if (hasWeighted && n.type == "column" && n.height == null && !(selfWeighted && parent == Parent.Column)) m = m.fillMaxHeight()
         val grad = n.gradient?.mapNotNull { concrete(it) }?.takeIf { it.isNotEmpty() }
         if (grad != null) {
             m = m.background(ImageProvider(Bitmaps.gradient(grad, n.angle ?: 90f, 192, 192)), contentScale = ContentScale.FillBounds)
@@ -293,7 +300,11 @@ class GlanceRenderer(
         n.tz?.takeIf { it.isNotBlank() }?.let { rv.setString(R.id.clock, "setTimeZone", it) }
         val g = when (parseH(n.textAlign) ?: parseH(n.align)) { HAlign.Center -> Gravity.CENTER_HORIZONTAL; HAlign.End -> Gravity.END; else -> Gravity.START }
         rv.setInt(R.id.clock, "setGravity", g or Gravity.CENTER_VERTICAL)
-        AndroidRemoteViews(rv, mod)
+        // AndroidRemoteViews defaults to match_parent; a clock should only take its text size.
+        var m = mod
+        if (n.height == null) m = m.wrapContentHeight()
+        if (n.width == null) m = m.wrapContentWidth()
+        AndroidRemoteViews(rv, m)
     }
 
     private fun iconRes(n: WNode): Int {
@@ -376,7 +387,8 @@ class GlanceRenderer(
         } else container?.let { c -> provider(c)?.let { m = m.background(it) } }
         m = m.cornerRadius(radius.dp)
         action(n.onClick)?.let { m = m.clickable(it) }
-        val inner = GlanceModifier.fillMaxSize().let {
+        val stretch = !hasText || parseDim(n.width) is Dim.Fixed || parseDim(n.width) == Dim.Fill || (n.weight ?: 0f) > 0f
+        val inner = (if (stretch) GlanceModifier.fillMaxSize() else GlanceModifier.fillMaxHeight()).let {
             if (outlineInset) it.padding(1.5f.dp).let { x -> provider(ink.bg ?: "@surface")?.let { p -> x.background(p).cornerRadius((radius - 1.5f).dp) } ?: x } else it
         }
         Box(m, contentAlignment = Alignment.Center) {

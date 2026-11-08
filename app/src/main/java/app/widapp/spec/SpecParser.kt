@@ -83,7 +83,7 @@ object SpecParser {
             }
         }
         val known = if (type in NodeTypes.all) type else if (n.children.isNotEmpty()) "box" else "spacer"
-        val icon = n.icon?.lowercase()?.trim()?.replace(' ', '_')?.replace('-', '_')
+        val icon = n.icon?.trim()?.let { if (it.contains('{')) it else it.lowercase().replace(' ', '_').replace('-', '_') }
         return n.copy(
             type = known,
             icon = icon,

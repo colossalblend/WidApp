@@ -61,6 +61,12 @@ data class AppSettings(
     val units: String = "c",
     val refreshMinutes: Int = 30,
     val aiLiveContent: Boolean = true,
+    val updateAutoCheck: Boolean = true,
+    val updateBeta: Boolean = false,
+    val updateNotify: Boolean = false,
+    val skippedVersion: String? = null,
+    /** Version that was running last time; used to show "What's new" once after an update. */
+    val lastSeenVersion: String? = null,
 )
 
 /** Live AI text for widgets: designId -> key -> value. */

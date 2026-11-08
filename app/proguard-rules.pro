@@ -16,3 +16,5 @@
 -dontwarn org.conscrypt.**
 -dontwarn org.bouncycastle.**
 -dontwarn org.openjsse.**
+# Keep serializable models and navigation routes intact (stored JSON + type-safe routes)
+-keep @kotlinx.serialization.Serializable class app.widapp.** { *; }

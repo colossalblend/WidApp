@@ -60,7 +60,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @Composable
-fun SettingsTab(onImported: (String) -> Unit) {
+fun SettingsTab(onImported: (String) -> Unit, onUpdates: () -> Unit = {}) {
     val app = rememberApp()
     val graph = app.graph
     val s by graph.settings.flow.collectAsState()
@@ -78,6 +78,7 @@ fun SettingsTab(onImported: (String) -> Unit) {
         results = runCatching { app.weatherService.searchCity(cityQuery) }.getOrDefault(emptyList())
         searching = false
     }
+    val available by app.updates.available.collectAsState()
     val importFail = stringResource(R.string.settings_import_fail)
     val refreshed = stringResource(R.string.settings_refreshed)
 
@@ -195,6 +196,23 @@ fun SettingsTab(onImported: (String) -> Unit) {
 
         item {
             Group(stringResource(R.string.settings_about)) {
+                Row(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(if (available != null) c.tertiaryContainer else c.surfaceContainer)
+                        .clickable(onClick = onUpdates).padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(painterResource(R.drawable.ic_download), null, tint = if (available != null) c.onTertiaryContainer else c.onSurfaceVariant)
+                    Spacer(Modifier.width(14.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(stringResource(R.string.update_title), style = MaterialTheme.typography.bodyLarge, color = if (available != null) c.onTertiaryContainer else c.onSurface)
+                        Text(
+                            available?.let { stringResource(R.string.update_row_available, it.version) } ?: stringResource(R.string.update_row_current, BuildConfig.VERSION_NAME),
+                            style = MonoLabel, color = if (available != null) c.onTertiaryContainer else c.onSurfaceVariant,
+                        )
+                    }
+                    Icon(painterResource(R.drawable.ic_chevron_right), null, tint = c.onSurfaceVariant)
+                }
+                Spacer(Modifier.height(16.dp))
                 Text(stringResource(R.string.settings_howto_title), style = MaterialTheme.typography.titleSmall)
                 Spacer(Modifier.height(4.dp))
                 Text(stringResource(R.string.settings_howto), style = MaterialTheme.typography.bodyMedium, color = c.onSurfaceVariant)

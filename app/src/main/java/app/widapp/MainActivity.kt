@@ -15,12 +15,14 @@ class MainActivity : ComponentActivity() {
     /** Text shared into the app (e.g. a widget JSON from a friend). */
     private val sharedText = mutableStateOf<String?>(null)
     private val openCreate = mutableStateOf(false)
+    private val openUpdates = mutableStateOf(false)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         handle(intent)
         val graph = (application as WidApp).graph
+        (application as WidApp).updates.checkInBackground()
         setContent {
             val settings by graph.settings.flow.collectAsState()
             WidTheme(themeMode = settings.themeMode, dynamicColor = settings.dynamicColor) {
@@ -29,6 +31,8 @@ class MainActivity : ComponentActivity() {
                     onSharedConsumed = { sharedText.value = null },
                     openCreate = openCreate.value,
                     onOpenCreateConsumed = { openCreate.value = false },
+                    openUpdates = openUpdates.value,
+                    onOpenUpdatesConsumed = { openUpdates.value = false },
                 )
             }
         }
@@ -42,9 +46,11 @@ class MainActivity : ComponentActivity() {
     private fun handle(intent: Intent?) {
         if (intent?.action == Intent.ACTION_SEND) sharedText.value = intent.getStringExtra(Intent.EXTRA_TEXT)
         if (intent?.getBooleanExtra(EXTRA_CREATE, false) == true) openCreate.value = true
+        if (intent?.getBooleanExtra(EXTRA_UPDATES, false) == true) openUpdates.value = true
     }
 
     companion object {
         const val EXTRA_CREATE = "app.widapp.CREATE"
+        const val EXTRA_UPDATES = "app.widapp.UPDATES"
     }
 }

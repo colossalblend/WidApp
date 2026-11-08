@@ -56,7 +56,7 @@ import app.widapp.ui.components.rememberGraph
 import app.widapp.ui.theme.MonoLabel
 
 @Composable
-fun LibraryTab(onOpen: (String) -> Unit, onCreate: () -> Unit, onConnect: () -> Unit, onIdeas: () -> Unit) {
+fun LibraryTab(onOpen: (String) -> Unit, onCreate: () -> Unit, onConnect: () -> Unit, onIdeas: () -> Unit, onUpdate: () -> Unit = {}) {
     val graph = rememberGraph()
     val library by graph.designs.flow.collectAsState()
     val providers by graph.providers.flow.collectAsState()
@@ -79,6 +79,7 @@ fun LibraryTab(onOpen: (String) -> Unit, onCreate: () -> Unit, onConnect: () -> 
                 title = stringResource(R.string.library_title),
             )
         }
+        item(span = StaggeredGridItemSpan.FullLine) { app.widapp.ui.update.UpdateBanner(onOpen = onUpdate) }
         if (providers.providers.isEmpty()) {
             item(span = StaggeredGridItemSpan.FullLine) { ConnectCard(onConnect) }
         }

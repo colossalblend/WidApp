@@ -1,3 +1,13 @@
+// Version comes from the release tag in CI (-PappVersion=1.2.3 or 1.3.0-beta.2).
+// versionCode = MMM·1_000_000 + mm·10_000 + pp·100 + (beta number, or 99 for a final release),
+// so every newer tag installs over the previous one and a final release beats its betas.
+val appVersion: String = (findProperty("appVersion") as String?)?.removePrefix("v") ?: "1.0.0"
+val appVersionCode: Int = Regex("""^(\d+)\.(\d+)\.(\d+)(?:-[A-Za-z]*\.?(\d+)?)?""").find(appVersion)?.groupValues
+    ?.let { g ->
+        val pre = if (appVersion.contains('-')) (g[4].toIntOrNull() ?: 1).coerceIn(1, 98) else 99
+        g[1].toInt() * 1_000_000 + g[2].toInt() * 10_000 + g[3].toInt() * 100 + pre
+    } ?: 1
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
@@ -16,8 +26,18 @@ android {
         applicationId = "app.widapp"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = appVersionCode
+        versionName = appVersion
+    }
+
+    signingConfigs {
+        // A committed debug key keeps APKs from different machines/CI runs installable over each other.
+        getByName("debug") {
+            storeFile = file("debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
     }
 
     buildTypes {
@@ -39,6 +59,24 @@ android {
     buildFeatures {
         compose = true
         buildConfig = true
+    }
+
+    testOptions {
+        unitTests {
+            isIncludeAndroidResources = true
+            all {
+                it.systemProperty("roborazzi.test.record", "true")
+                it.systemProperty("robolectric.graphicsMode", "NATIVE")
+                it.maxHeapSize = "3g"
+                it.jvmArgs(
+                    "--add-opens=java.base/java.io=ALL-UNNAMED",
+                    "--add-opens=java.base/java.lang=ALL-UNNAMED",
+                    "--add-opens=java.base/java.util=ALL-UNNAMED",
+                    "--add-exports=java.base/jdk.internal.access=ALL-UNNAMED",
+                    "--add-opens=java.base/jdk.internal.access=ALL-UNNAMED",
+                )
+            }
+        }
     }
 
     packaging {
@@ -82,4 +120,12 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.okhttp)
+
+    testImplementation(libs.junit)
+    testImplementation(libs.robolectric)
+    testImplementation(libs.roborazzi)
+    testImplementation(libs.roborazzi.compose)
+    testImplementation(platform(libs.androidx.compose.bom))
+    testImplementation(libs.androidx.compose.ui.test.junit4)
+    debugImplementation(libs.androidx.compose.ui.test.manifest)
 }

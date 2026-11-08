@@ -26,7 +26,16 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
+import app.widapp.BuildConfig
 import app.widapp.R
+import app.widapp.ui.components.rememberApp
+import app.widapp.ui.update.UpdateScreen
+import app.widapp.ui.update.WhatsNewSheet
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import app.widapp.spec.SpecParser
 import app.widapp.ui.components.rememberGraph
 import app.widapp.ui.create.CreateScreen
@@ -42,6 +51,7 @@ import kotlinx.serialization.Serializable
 @Serializable data class CreateRoute(val prompt: String = "", val size: String = "", val surprise: Boolean = false)
 @Serializable data class EditorRoute(val id: String)
 @Serializable data class ProviderRoute(val id: String = "", val preset: String = "")
+@Serializable object UpdateRoute
 
 private data class Tab(val label: Int, val icon: Int, val iconSelected: Int)
 
@@ -53,7 +63,14 @@ private val tabs = listOf(
 )
 
 @Composable
-fun AppNav(sharedText: String?, onSharedConsumed: () -> Unit, openCreate: Boolean, onOpenCreateConsumed: () -> Unit) {
+fun AppNav(
+    sharedText: String?,
+    onSharedConsumed: () -> Unit,
+    openCreate: Boolean,
+    onOpenCreateConsumed: () -> Unit,
+    openUpdates: Boolean = false,
+    onOpenUpdatesConsumed: () -> Unit = {},
+) {
     val nav = rememberNavController()
     val graph = rememberGraph()
     var tab by rememberSaveable { mutableIntStateOf(0) }
@@ -72,6 +89,22 @@ fun AppNav(sharedText: String?, onSharedConsumed: () -> Unit, openCreate: Boolea
     LaunchedEffect(openCreate) {
         if (openCreate) { onOpenCreateConsumed(); nav.navigate(CreateRoute()) }
     }
+    LaunchedEffect(openUpdates) {
+        if (openUpdates) { onOpenUpdatesConsumed(); nav.navigate(UpdateRoute) }
+    }
+    val app = rememberApp()
+    val available by app.updates.available.collectAsState()
+    val settings by graph.settings.flow.collectAsState()
+    // "What's new" once after an OTA update.
+    var whatsNew by remember { mutableStateOf<Pair<String, String>?>(null) }
+    LaunchedEffect(Unit) {
+        val seen = settings.lastSeenVersion
+        if (seen != BuildConfig.VERSION_NAME) {
+            if (seen != null) whatsNew = BuildConfig.VERSION_NAME to (app.updates.releaseFor(BuildConfig.VERSION_NAME)?.notes ?: "")
+            graph.settings.update { it.copy(lastSeenVersion = BuildConfig.VERSION_NAME, skippedVersion = null) }
+        }
+    }
+    whatsNew?.let { (v, notes) -> WhatsNewSheet(v, notes) { whatsNew = null } }
 
     NavHost(nav, startDestination = HomeRoute) {
         composable<HomeRoute> {
@@ -83,7 +116,11 @@ fun AppNav(sharedText: String?, onSharedConsumed: () -> Unit, openCreate: Boolea
                             NavigationBarItem(
                                 selected = tab == i,
                                 onClick = { tab = i },
-                                icon = { Icon(painterResource(if (tab == i) t.iconSelected else t.icon), null) },
+                                icon = {
+                                    BadgedBox(badge = { if (i == 3 && available != null) Badge(containerColor = MaterialTheme.colorScheme.tertiary) }) {
+                                        Icon(painterResource(if (tab == i) t.iconSelected else t.icon), null)
+                                    }
+                                },
                                 label = { Text(stringResource(t.label)) },
                                 colors = NavigationBarItemDefaults.colors(
                                     indicatorColor = MaterialTheme.colorScheme.secondaryContainer,
@@ -109,6 +146,7 @@ fun AppNav(sharedText: String?, onSharedConsumed: () -> Unit, openCreate: Boolea
                             onCreate = { nav.navigate(CreateRoute()) },
                             onConnect = { tab = 2 },
                             onIdeas = { tab = 1 },
+                            onUpdate = { nav.navigate(UpdateRoute) },
                         )
                         1 -> IdeasTab(
                             onPrompt = { p, s -> nav.navigate(CreateRoute(prompt = p, size = s)) },
@@ -119,7 +157,7 @@ fun AppNav(sharedText: String?, onSharedConsumed: () -> Unit, openCreate: Boolea
                             onEdit = { nav.navigate(ProviderRoute(id = it)) },
                             onAdd = { preset -> nav.navigate(ProviderRoute(preset = preset)) },
                         )
-                        else -> SettingsTab(onImported = { nav.navigate(EditorRoute(it)) })
+                        else -> SettingsTab(onImported = { nav.navigate(EditorRoute(it)) }, onUpdates = { nav.navigate(UpdateRoute) })
                     }
                 }
             }
@@ -146,6 +184,7 @@ fun AppNav(sharedText: String?, onSharedConsumed: () -> Unit, openCreate: Boolea
                 onConnect = { nav.popBackStack(); tab = 2 },
             )
         }
+        composable<UpdateRoute> { UpdateScreen(onBack = { nav.popBackStack() }) }
         composable<ProviderRoute> { entry ->
             val r = entry.toRoute<ProviderRoute>()
             ProviderEditScreen(id = r.id.ifBlank { null }, presetId = r.preset.ifBlank { null }, onBack = { nav.popBackStack() })

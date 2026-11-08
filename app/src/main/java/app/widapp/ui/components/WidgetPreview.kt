@@ -219,6 +219,8 @@ private fun decorate(n: WNode, outer: Modifier, ctx: PreviewCtx, skipSize: Boole
             is Dim.Fixed -> m = m.height((h.dp * ctx.k).dp); null -> Unit
         }
     }
+    val hasWeighted = n.children.any { (it.weight ?: 0f) > 0f }
+    if (!skipSize && hasWeighted && n.type == "row" && n.width == null && (n.weight ?: 0f) <= 0f) m = m.fillMaxWidth()
     val corner = n.corner?.let { (it * ctx.k).dp }
     if (corner != null) m = m.clip(RoundedCornerShape(corner))
     val grad = n.gradient?.mapNotNull { ctx.color(it) }

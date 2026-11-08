@@ -231,7 +231,7 @@ private fun Canvas(d: WidgetDesign, vm: EditorViewModel) {
     val c = MaterialTheme.colorScheme
     val context = LocalContext.current
     val size = WidgetSize.of(d.spec.size)
-    val systemDark = isSystemInDarkTheme()
+    val systemDark = app.widapp.ui.components.appIsDark()
     val dark = vm.previewDark ?: systemDark
     val data = rememberPreviewData(d.id)
     val palette = rememberPalette()

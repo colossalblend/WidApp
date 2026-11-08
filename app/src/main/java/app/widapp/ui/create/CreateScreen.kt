@@ -256,19 +256,21 @@ fun CreateScreen(
                 Spacer(Modifier.height(28.dp))
                 Kicker("02 — " + stringResource(R.string.create_step_size))
                 Spacer(Modifier.height(12.dp))
-                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    WidgetSize.entries.forEach { s ->
-                        val sel = vm.size == s
-                        Column(
-                            Modifier.clip(RoundedCornerShape(20.dp))
-                                .background(if (sel) c.secondaryContainer else c.surfaceContainerLow)
-                                .then(if (sel) Modifier.border(BorderStroke(1.5.dp, c.onSecondaryContainer), RoundedCornerShape(20.dp)) else Modifier)
-                                .clickable { vm.size = s }.padding(horizontal = 14.dp, vertical = 12.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                        ) {
-                            SizeGlyph(s, sel)
-                            Spacer(Modifier.height(8.dp))
-                            Text(s.label, style = MonoLabel, color = if (sel) c.onSecondaryContainer else c.onSurfaceVariant)
+                WidgetSize.entries.chunked(4).forEach { rowSizes ->
+                    Row(Modifier.fillMaxWidth().padding(bottom = 10.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        rowSizes.forEach { s ->
+                            val sel = vm.size == s
+                            Column(
+                                Modifier.weight(1f).clip(RoundedCornerShape(20.dp))
+                                    .background(if (sel) c.secondaryContainer else c.surfaceContainerLow)
+                                    .then(if (sel) Modifier.border(BorderStroke(1.5.dp, c.onSecondaryContainer), RoundedCornerShape(20.dp)) else Modifier)
+                                    .clickable { vm.size = s }.padding(vertical = 12.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                            ) {
+                                SizeGlyph(s, sel)
+                                Spacer(Modifier.height(8.dp))
+                                Text(s.label, style = MonoLabel, color = if (sel) c.onSecondaryContainer else c.onSurfaceVariant)
+                            }
                         }
                     }
                 }

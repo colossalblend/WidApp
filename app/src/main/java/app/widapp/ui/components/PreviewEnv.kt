@@ -46,6 +46,14 @@ fun rememberPreviewData(designId: String?): DataSnapshot {
     }
 }
 
+/** Dark state of the app theme (follows the in-app theme switch, not only the system). */
+@Composable
+fun appIsDark(): Boolean {
+    val graph = rememberGraph()
+    val settings by graph.settings.flow.collectAsState()
+    return when (settings.themeMode) { "light" -> false; "dark" -> true; else -> isSystemInDarkTheme() }
+}
+
 @Composable
 fun rememberPalette(): WidgetPalette {
     val ctx = LocalContext.current
@@ -56,7 +64,7 @@ fun rememberPalette(): WidgetPalette {
 
 /** Static (non-interactive) thumbnail of a spec, used in grids. */
 @Composable
-fun WidgetThumb(spec: WidgetSpec, designId: String?, modifier: Modifier = Modifier, dark: Boolean = isSystemInDarkTheme(), state: Map<String, JsonPrimitive> = emptyMap(), onAction: ((List<WAction>) -> Unit)? = null) {
+fun WidgetThumb(spec: WidgetSpec, designId: String?, modifier: Modifier = Modifier, dark: Boolean = appIsDark(), state: Map<String, JsonPrimitive> = emptyMap(), onAction: ((List<WAction>) -> Unit)? = null) {
     WidgetPreview(
         spec = spec,
         state = spec.state + state,
