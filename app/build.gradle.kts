@@ -1,3 +1,5 @@
+import java.util.Properties
+
 // Version comes from the release tag in CI (-PappVersion=1.2.3 or 1.3.0-beta.2).
 // versionCode = MMM·1_000_000 + mm·10_000 + pp·100 + (beta number, or 99 for a final release),
 // so every newer tag installs over the previous one and a final release beats its betas.
@@ -7,6 +9,15 @@ val appVersionCode: Int = Regex("""^(\d+)\.(\d+)\.(\d+)(?:-[A-Za-z]*\.?(\d+)?)?"
         val pre = if (appVersion.contains('-')) (g[4].toIntOrNull() ?: 1).coerceIn(1, 98) else 99
         g[1].toInt() * 1_000_000 + g[2].toInt() * 10_000 + g[3].toInt() * 100 + pre
     } ?: 1
+
+// Release signing comes from the environment (CI secrets) or a local, git-ignored keystore.properties.
+// Without it, release APKs are left unsigned rather than signed with a public key.
+val signingProps = Properties().apply {
+    val f = rootProject.file("keystore.properties")
+    if (f.exists()) f.inputStream().use { load(it) }
+}
+fun signingValue(env: String, prop: String): String? = System.getenv(env)?.takeIf { it.isNotBlank() } ?: signingProps.getProperty(prop)
+val releaseStoreFile: String? = signingValue("WIDAPP_KEYSTORE_FILE", "storeFile")
 
 plugins {
     alias(libs.plugins.android.application)
@@ -31,12 +42,20 @@ android {
     }
 
     signingConfigs {
-        // A committed debug key keeps APKs from different machines/CI runs installable over each other.
+        // Debug builds share a committed key so dev APKs from any machine install over each other.
         getByName("debug") {
             storeFile = file("debug.keystore")
             storePassword = "android"
             keyAlias = "androiddebugkey"
             keyPassword = "android"
+        }
+        if (releaseStoreFile != null && rootProject.file(releaseStoreFile).exists()) {
+            create("release") {
+                storeFile = rootProject.file(releaseStoreFile)
+                storePassword = signingValue("WIDAPP_KEYSTORE_PASSWORD", "storePassword")
+                keyAlias = signingValue("WIDAPP_KEY_ALIAS", "keyAlias")
+                keyPassword = signingValue("WIDAPP_KEY_PASSWORD", "keyPassword")
+            }
         }
     }
 
@@ -45,9 +64,7 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            // Signed with the debug key so the release APK installs out of the box.
-            // Replace with your own signingConfig before publishing.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.findByName("release")
         }
     }
 

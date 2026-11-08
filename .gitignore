@@ -13,3 +13,8 @@
 *.aab
 *.keystore
 !debug.keystore
+
+# Private release signing material — never commit
+release-signing/
+keystore.properties
+*.jks
